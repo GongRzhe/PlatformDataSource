@@ -3,7 +3,7 @@ let currentMapping = {
     fields: []
 };
 
-// 等待DOM完全加载后再初始化
+// 初始化页面事件监听
 document.addEventListener('DOMContentLoaded', () => {
     initializeEventListeners();
 });
@@ -24,22 +24,46 @@ function initializeEventListeners() {
         fetchDataBtn.addEventListener('click', fetchSourceData);
     }
 
-    // 添加字段按钮
-    const addFieldBtn = document.getElementById('addField');
-    if (addFieldBtn) {
-        addFieldBtn.addEventListener('click', () => addMappingField());
+    // 字段选择按钮
+    const selectAllFieldsBtn = document.getElementById('selectAllFields');
+    if (selectAllFieldsBtn) {
+        selectAllFieldsBtn.addEventListener('click', () => addMappingField('*'));
     }
 
-    // 生成映射按钮
-    const generateMappingBtn = document.getElementById('generateMapping');
-    if (generateMappingBtn) {
-        generateMappingBtn.addEventListener('click', generateMapping);
+    const selectByPatternBtn = document.getElementById('selectByPattern');
+    if (selectByPatternBtn) {
+        selectByPatternBtn.addEventListener('click', () => {
+            const pattern = document.getElementById('patternInput').value.trim();
+            if (pattern) {
+                addMappingField(pattern);
+            } else {
+                alert('请输入通配符模式');
+            }
+        });
     }
 
     // 选择行按钮
     const selectRowBtn = document.getElementById('selectRow');
     if (selectRowBtn) {
         selectRowBtn.addEventListener('click', selectEntireRow);
+    }
+
+    // 添加字段按钮
+    const addFieldBtn = document.getElementById('addField');
+    if (addFieldBtn) {
+        addFieldBtn.addEventListener('click', () => addMappingField());
+    }
+
+    // 添加筛选条件按钮
+    const addFilterBtn = document.getElementById('addFilter');
+    if (addFilterBtn) {
+        addFilterBtn.addEventListener('click', addFilterCondition);
+    }
+
+    // 生成映射按钮
+    const generateMappingBtn = document.getElementById('generateMapping');
+    if (generateMappingBtn) {
+        generateMappingBtn.addEventListener('click', generateMapping);
     }
 }
 
@@ -73,6 +97,7 @@ async function fetchSourceData() {
         sourceData = result.data;
         displayJsonPreview(sourceData);
         showMappingSection();
+        showFilterSection();
     } catch (error) {
         alert('获取数据失败: ' + error.message);
     }
@@ -95,6 +120,14 @@ function showMappingSection() {
     if (mappingSection && fieldMappings) {
         mappingSection.style.display = 'block';
         fieldMappings.innerHTML = '';
+    }
+}
+
+// 显示筛选部分
+function showFilterSection() {
+    const filterSection = document.getElementById('filterSection');
+    if (filterSection) {
+        filterSection.style.display = 'block';
     }
 }
 
@@ -124,7 +157,7 @@ function selectEntireRow() {
 
         // 为对象中的每个字段创建映射
         Object.keys(targetData).forEach(key => {
-            addMappingField(key);
+            addMappingField(`${rowIndex}.${key}`);
         });
     }
 }
@@ -139,7 +172,7 @@ function addMappingField(fieldPath = '') {
     
     fieldDiv.innerHTML = `
         <div class="col-5">
-            <input type="text" class="form-control field-path" placeholder="JSON路径 (例: title)" value="${fieldPath}">
+            <input type="text" class="form-control field-path" placeholder="JSON路径 (例: *.name)" value="${fieldPath}">
         </div>
         <div class="col-5">
             <input type="text" class="form-control field-alias" placeholder="别名 (可选)">
@@ -156,6 +189,50 @@ function addMappingField(fieldPath = '') {
     if (removeBtn) {
         removeBtn.addEventListener('click', () => {
             container.removeChild(fieldDiv);
+        });
+    }
+}
+
+// 添加筛选条件行
+function addFilterCondition() {
+    const container = document.getElementById('filterConditions');
+    if (!container) return;
+
+    const filterDiv = document.createElement('div');
+    filterDiv.className = 'filter-row row g-3 align-items-center mb-2';
+    
+    filterDiv.innerHTML = `
+        <div class="col-4">
+            <input type="text" class="form-control filter-field" placeholder="字段名">
+        </div>
+        <div class="col-3">
+            <select class="form-select filter-operator">
+                <option value="eq">等于</option>
+                <option value="neq">不等于</option>
+                <option value="gt">大于</option>
+                <option value="gte">大于等于</option>
+                <option value="lt">小于</option>
+                <option value="lte">小于等于</option>
+                <option value="contains">包含</option>
+                <option value="startsWith">开头是</option>
+                <option value="endsWith">结尾是</option>
+            </select>
+        </div>
+        <div class="col-3">
+            <input type="text" class="form-control filter-value" placeholder="值">
+        </div>
+        <div class="col-2">
+            <button class="btn btn-danger btn-remove-filter">删除</button>
+        </div>
+    `;
+
+    container.appendChild(filterDiv);
+
+    // 添加删除按钮事件
+    const removeBtn = filterDiv.querySelector('.btn-remove-filter');
+    if (removeBtn) {
+        removeBtn.addEventListener('click', () => {
+            container.removeChild(filterDiv);
         });
     }
 }
@@ -182,6 +259,24 @@ async function generateMapping() {
         return;
     }
 
+    // 收集筛选条件
+    const filterConditions = [];
+    document.querySelectorAll('.filter-row').forEach(row => {
+        const field = row.querySelector('.filter-field').value.trim();
+        const operator = row.querySelector('.filter-operator').value;
+        const value = row.querySelector('.filter-value').value.trim();
+        
+        if (field && value) {
+            filterConditions.push({ field, operator, value });
+        }
+    });
+
+    // 收集排序和分页设置
+    const sortField = document.getElementById('sortField').value.trim();
+    const sortOrder = document.getElementById('sortOrder').value;
+    const startIndex = parseInt(document.getElementById('startIndex').value) || undefined;
+    const limit = parseInt(document.getElementById('limit').value) || undefined;
+
     try {
         const sourceType = document.querySelector('input[name="sourceType"]:checked').value;
         const sourceValue = sourceType === 'url' 
@@ -198,7 +293,13 @@ async function generateMapping() {
                     type: sourceType,
                     value: sourceValue
                 },
-                mapping: currentMapping
+                mapping: currentMapping,
+                filter: {
+                    conditions: filterConditions.length > 0 ? filterConditions : undefined,
+                    sort: sortField ? { field: sortField, order: sortOrder } : undefined,
+                    startIndex,
+                    limit
+                }
             })
         });
 

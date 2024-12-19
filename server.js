@@ -31,8 +31,37 @@ const getRedisClient = async () => {
     return redisClient;
 };
 
-// Helper function to get value by path
+// Helper function to get value by path with wildcard support
 function getValueByPath(obj, path) {
+    // Handle wildcard paths
+    if (path.includes('*')) {
+        const parts = path.split('.');
+        const wildcardIndex = parts.findIndex(p => p === '*');
+        
+        if (wildcardIndex === 0) {
+            // Handle case where wildcard is at the start (e.g., "*.name")
+            if (Array.isArray(obj)) {
+                const remainingPath = parts.slice(1).join('.');
+                return obj.map(item => getValueByPath(item, remainingPath));
+            }
+            return [];
+        } else {
+            // Handle nested wildcards
+            let current = obj;
+            for (let i = 0; i < wildcardIndex; i++) {
+                if (current === null || current === undefined) return undefined;
+                current = current[parts[i]];
+            }
+            
+            if (Array.isArray(current)) {
+                const remainingPath = parts.slice(wildcardIndex + 1).join('.');
+                return current.map(item => getValueByPath(item, remainingPath));
+            }
+            return [];
+        }
+    }
+
+    // Handle regular paths
     const parts = path.split('.');
     let current = obj;
     
@@ -58,13 +87,27 @@ function applyMapping(data, mapping, filter = {}) {
     
     // Handle array data
     if (Array.isArray(data)) {
-        // Apply mapping to each item
-        data.forEach(item => {
+        data.forEach((item, index) => {
             const row = {};
             mapping.fields.forEach(field => {
-                const value = getValueByPath(item, field.path.replace(/^\d+\./, ''));
-                if (value !== undefined) {
-                    row[field.alias || field.path] = value;
+                if (field.path === '*') {
+                    // Handle entire row selection
+                    Object.assign(row, item);
+                } else {
+                    const value = getValueByPath(data, field.path);
+                    if (Array.isArray(value)) {
+                        // Handle wildcard results
+                        value.forEach((v, i) => {
+                            if (v !== undefined) {
+                                row[field.alias || `${field.path.replace('*', i)}`] = v;
+                            }
+                        });
+                    } else {
+                        const singleValue = getValueByPath(item, field.path.replace(/^\d+\./, ''));
+                        if (singleValue !== undefined) {
+                            row[field.alias || field.path] = singleValue;
+                        }
+                    }
                 }
             });
             if (Object.keys(row).length > 0) {
@@ -75,9 +118,14 @@ function applyMapping(data, mapping, filter = {}) {
         // Handle single object data
         const row = {};
         mapping.fields.forEach(field => {
-            const value = getValueByPath(data, field.path);
-            if (value !== undefined) {
-                row[field.alias || field.path] = value;
+            if (field.path === '*') {
+                // Handle entire object selection
+                Object.assign(row, data);
+            } else {
+                const value = getValueByPath(data, field.path);
+                if (value !== undefined) {
+                    row[field.alias || field.path] = value;
+                }
             }
         });
         if (Object.keys(row).length > 0) {
@@ -85,18 +133,39 @@ function applyMapping(data, mapping, filter = {}) {
         }
     }
 
-    // Apply sorting if specified
+    // Apply filtering
+    if (filter.conditions) {
+        result = result.filter(row => {
+            return filter.conditions.every(condition => {
+                const value = row[condition.field];
+                switch (condition.operator) {
+                    case 'eq': return value === condition.value;
+                    case 'neq': return value !== condition.value;
+                    case 'gt': return value > condition.value;
+                    case 'gte': return value >= condition.value;
+                    case 'lt': return value < condition.value;
+                    case 'lte': return value <= condition.value;
+                    case 'contains': return String(value).includes(condition.value);
+                    case 'startsWith': return String(value).startsWith(condition.value);
+                    case 'endsWith': return String(value).endsWith(condition.value);
+                    default: return true;
+                }
+            });
+        });
+    }
+
+    // Apply sorting
     if (filter.sort && filter.sort.field) {
         result.sort((a, b) => {
-            const aVal = a[filter.sort.field] || '';
-            const bVal = b[filter.sort.field] || '';
+            const aVal = a[filter.sort.field];
+            const bVal = b[filter.sort.field];
             
             if (typeof aVal === 'number' && typeof bVal === 'number') {
                 return filter.sort.order === 'desc' ? bVal - aVal : aVal - bVal;
             }
             
-            const aStr = String(aVal);
-            const bStr = String(bVal);
+            const aStr = String(aVal || '');
+            const bStr = String(bVal || '');
             return filter.sort.order === 'desc' ? 
                 bStr.localeCompare(aStr) : 
                 aStr.localeCompare(bStr);
@@ -104,9 +173,11 @@ function applyMapping(data, mapping, filter = {}) {
     }
 
     // Apply pagination
-    const startIndex = filter.startIndex || 0;
-    const limit = filter.limit || result.length;
-    result = result.slice(startIndex, startIndex + limit);
+    if (filter.startIndex !== undefined || filter.limit !== undefined) {
+        const start = filter.startIndex || 0;
+        const end = filter.limit ? start + filter.limit : undefined;
+        result = result.slice(start, end);
+    }
 
     return result;
 }

@@ -23,6 +23,14 @@
             margin-top: 20px;
             overflow-x: auto;
         }
+        .filter-row {
+            margin-bottom: 10px;
+        }
+        .helper-text {
+            font-size: 0.875rem;
+            color: #6c757d;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
@@ -74,21 +82,91 @@
                 <h5 class="mb-0">步骤 3: 字段映射</h5>
             </div>
             <div class="card-body">
-                <!-- 行选择 -->
-                <div class="row mb-3">
-                    <div class="col-md-4">
+                <!-- 快速选择 -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label">快速选择</label>
+                        <div class="input-group">
+                            <button class="btn btn-secondary" id="selectAllFields">选择所有字段</button>
+                            <button class="btn btn-secondary" id="selectByPattern">使用通配符选择</button>
+                            <input type="text" class="form-control" id="patternInput" placeholder="例如: *.name 或 data.*.id">
+                        </div>
+                        <div class="helper-text">
+                            通配符示例：<br>
+                            - * 选择整行数据<br>
+                            - *.name 选择所有行的name字段<br>
+                            - data.*.id 选择data数组中所有元素的id字段
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">选择指定行</label>
                         <div class="input-group">
                             <input type="number" class="form-control" id="rowIndex" placeholder="行索引" min="0" value="0">
-                            <button class="btn btn-secondary" id="selectRow">选择整行数据</button>
+                            <button class="btn btn-secondary" id="selectRow">选择该行数据</button>
                         </div>
-                        <small class="text-muted">输入行索引（从0开始）并点击按钮选择该行的所有字段</small>
+                        <div class="helper-text">
+                            输入行索引（从0开始）选择特定行的所有字段
+                        </div>
                     </div>
                 </div>
 
+                <!-- 字段映射列表 -->
                 <div id="fieldMappings" class="field-mapping">
                     <!-- 动态添加的字段映射行 -->
                 </div>
                 <button class="btn btn-secondary" id="addField">添加字段</button>
+            </div>
+        </div>
+
+        <!-- 筛选和排序 -->
+        <div class="card mb-4" id="filterSection" style="display: none;">
+            <div class="card-header">
+                <h5 class="mb-0">步骤 4: 筛选和排序</h5>
+            </div>
+            <div class="card-body">
+                <!-- 筛选条件 -->
+                <div class="mb-4">
+                    <label class="form-label">筛选条件</label>
+                    <div id="filterConditions">
+                        <!-- 动态添加的筛选条件行 -->
+                    </div>
+                    <button class="btn btn-secondary" id="addFilter">添加筛选条件</button>
+                </div>
+
+                <!-- 排序设置 -->
+                <div class="mb-4">
+                    <label class="form-label">排序设置</label>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <input type="text" class="form-control" id="sortField" placeholder="排序字段">
+                        </div>
+                        <div class="col-md-6">
+                            <select class="form-select" id="sortOrder">
+                                <option value="asc">升序</option>
+                                <option value="desc">降序</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 分页设置 -->
+                <div class="mb-4">
+                    <label class="form-label">分页设置</label>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <input type="number" class="form-control" id="startIndex" placeholder="起始位置" min="0">
+                        </div>
+                        <div class="col-md-6">
+                            <input type="number" class="form-control" id="limit" placeholder="获取数量" min="1">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 生成结果 -->
+        <div class="card mb-4">
+            <div class="card-body">
                 <button class="btn btn-primary" id="generateMapping">生成映射</button>
             </div>
         </div>
@@ -96,7 +174,7 @@
         <!-- 结果预览 -->
         <div class="card mb-4" id="resultSection" style="display: none;">
             <div class="card-header">
-                <h5 class="mb-0">步骤 4: 结果预览</h5>
+                <h5 class="mb-0">结果预览</h5>
             </div>
             <div class="card-body">
                 <div class="preview-table">
