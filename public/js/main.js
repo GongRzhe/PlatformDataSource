@@ -1,35 +1,49 @@
+// 全局变量：存储源数据和当前映射配置
 let sourceData = null;
 let currentMapping = {
     fields: []
 };
 
-// 初始化页面事件监听
+/**
+ * 当 DOM 加载完成后初始化页面
+ * 这是整个应用的入口点
+ */
 document.addEventListener('DOMContentLoaded', () => {
     initializeEventListeners();
 });
 
-// 初始化所有事件监听器
+/**
+ * 初始化所有事件监听器
+ * 包括：
+ * - 数据源类型切换
+ * - 数据获取
+ * - 字段选择
+ * - 筛选条件
+ * - 映射生成等
+ */
 function initializeEventListeners() {
-    // 数据源类型切换
+    // 监听数据源类型切换（URL/Redis）
     document.querySelectorAll('input[name="sourceType"]').forEach(radio => {
         radio.addEventListener('change', (e) => {
+            // 根据选择显示对应的输入框
             document.getElementById('urlInput').style.display = e.target.value === 'url' ? 'block' : 'none';
             document.getElementById('redisInput').style.display = e.target.value === 'redis' ? 'block' : 'none';
         });
     });
 
-    // 获取数据按钮
+    // 获取数据按钮事件
     const fetchDataBtn = document.getElementById('fetchData');
     if (fetchDataBtn) {
         fetchDataBtn.addEventListener('click', fetchSourceData);
     }
 
-    // 字段选择按钮
+    // 全部字段选择按钮事件
     const selectAllFieldsBtn = document.getElementById('selectAllFields');
     if (selectAllFieldsBtn) {
         selectAllFieldsBtn.addEventListener('click', () => addMappingField('*'));
     }
 
+    // 通配符模式选择按钮事件
     const selectByPatternBtn = document.getElementById('selectByPattern');
     if (selectByPatternBtn) {
         selectByPatternBtn.addEventListener('click', () => {
@@ -42,32 +56,36 @@ function initializeEventListeners() {
         });
     }
 
-    // 选择行按钮
+    // 选择指定行按钮事件
     const selectRowBtn = document.getElementById('selectRow');
     if (selectRowBtn) {
         selectRowBtn.addEventListener('click', selectEntireRow);
     }
 
-    // 添加字段按钮
+    // 添加字段按钮事件
     const addFieldBtn = document.getElementById('addField');
     if (addFieldBtn) {
         addFieldBtn.addEventListener('click', () => addMappingField());
     }
 
-    // 添加筛选条件按钮
+    // 添加筛选条件按钮事件
     const addFilterBtn = document.getElementById('addFilter');
     if (addFilterBtn) {
         addFilterBtn.addEventListener('click', addFilterCondition);
     }
 
-    // 生成映射按钮
+    // 生成映射按钮事件
     const generateMappingBtn = document.getElementById('generateMapping');
     if (generateMappingBtn) {
         generateMappingBtn.addEventListener('click', generateMapping);
     }
 }
 
-// 获取数据源数据
+/**
+ * 从选定的数据源获取数据
+ * 支持从 URL 或 Redis 获取数据
+ * 获取成功后会显示数据预览和映射配置界面
+ */
 async function fetchSourceData() {
     const sourceType = document.querySelector('input[name="sourceType"]:checked').value;
     const endpoint = sourceType === 'url' ? '/api/fetch-url' : '/api/fetch-redis';
@@ -81,6 +99,7 @@ async function fetchSourceData() {
     }
 
     try {
+        // 发送请求获取数据
         const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
@@ -94,6 +113,7 @@ async function fetchSourceData() {
             throw new Error(result.error);
         }
 
+        // 保存数据并更新界面
         sourceData = result.data;
         displayJsonPreview(sourceData);
         showMappingSection();
@@ -255,7 +275,7 @@ async function generateMapping() {
     });
 
     if (currentMapping.fields.length === 0) {
-        alert('请至少添加一个字段映射');
+        alert('请���少添加一个字段映射');
         return;
     }
 
