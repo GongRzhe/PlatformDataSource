@@ -74,6 +74,17 @@
                 <h5 class="mb-0">步骤 3: 字段映射</h5>
             </div>
             <div class="card-body">
+                <!-- 行选择 -->
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="rowIndex" placeholder="行索引" min="0" value="0">
+                            <button class="btn btn-secondary" id="selectRow">选择整行数据</button>
+                        </div>
+                        <small class="text-muted">输入行索引（从0开始）并点击按钮选择该行的所有字段</small>
+                    </div>
+                </div>
+
                 <div id="fieldMappings" class="field-mapping">
                     <!-- 动态添加的字段映射行 -->
                 </div>

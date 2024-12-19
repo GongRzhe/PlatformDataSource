@@ -31,41 +31,82 @@ const getRedisClient = async () => {
     return redisClient;
 };
 
-// Helper function to apply mapping to data
-function applyMapping(data, mapping) {
-    const result = [];
-    const traverse = (obj, path = '') => {
-        for (const key in obj) {
-            const newPath = path ? `${path}.${key}` : key;
-            if (typeof obj[key] === 'object' && obj[key] !== null && !Array.isArray(obj[key])) {
-                traverse(obj[key], newPath);
-            } else {
-                mapping.fields.forEach(field => {
-                    if (field.path === newPath) {
-                        if (!result[0]) {
-                            result[0] = {};
-                        }
-                        result[0][field.alias || field.path] = obj[key];
-                    }
-                });
-            }
+// Helper function to get value by path
+function getValueByPath(obj, path) {
+    const parts = path.split('.');
+    let current = obj;
+    
+    for (const part of parts) {
+        if (current === null || current === undefined) {
+            return undefined;
         }
-    };
+        
+        // Handle array index
+        if (!isNaN(part) && Array.isArray(current)) {
+            current = current[parseInt(part)];
+        } else {
+            current = current[part];
+        }
+    }
+    
+    return current;
+}
 
+// Helper function to apply mapping to data
+function applyMapping(data, mapping, filter = {}) {
+    let result = [];
+    
+    // Handle array data
     if (Array.isArray(data)) {
+        // Apply mapping to each item
         data.forEach(item => {
             const row = {};
             mapping.fields.forEach(field => {
-                const value = field.path.split('.').reduce((obj, key) => obj && obj[key], item);
+                const value = getValueByPath(item, field.path.replace(/^\d+\./, ''));
                 if (value !== undefined) {
                     row[field.alias || field.path] = value;
                 }
             });
-            result.push(row);
+            if (Object.keys(row).length > 0) {
+                result.push(row);
+            }
         });
     } else {
-        traverse(data);
+        // Handle single object data
+        const row = {};
+        mapping.fields.forEach(field => {
+            const value = getValueByPath(data, field.path);
+            if (value !== undefined) {
+                row[field.alias || field.path] = value;
+            }
+        });
+        if (Object.keys(row).length > 0) {
+            result.push(row);
+        }
     }
+
+    // Apply sorting if specified
+    if (filter.sort && filter.sort.field) {
+        result.sort((a, b) => {
+            const aVal = a[filter.sort.field] || '';
+            const bVal = b[filter.sort.field] || '';
+            
+            if (typeof aVal === 'number' && typeof bVal === 'number') {
+                return filter.sort.order === 'desc' ? bVal - aVal : aVal - bVal;
+            }
+            
+            const aStr = String(aVal);
+            const bStr = String(bVal);
+            return filter.sort.order === 'desc' ? 
+                bStr.localeCompare(aStr) : 
+                aStr.localeCompare(bStr);
+        });
+    }
+
+    // Apply pagination
+    const startIndex = filter.startIndex || 0;
+    const limit = filter.limit || result.length;
+    result = result.slice(startIndex, startIndex + limit);
 
     return result;
 }
@@ -108,10 +149,11 @@ app.post('/api/fetch-redis', async (req, res) => {
 // Save data mapping configuration
 app.post('/api/save-mapping', async (req, res) => {
     try {
-        const { source, mapping } = req.body;
+        const { source, mapping, filter } = req.body;
         const config = {
             source,
             mapping,
+            filter,
             created_at: new Date().toISOString()
         };
         
@@ -178,14 +220,14 @@ app.get('/api/data/:configId', async (req, res) => {
             }
         }
         
-        const result = applyMapping(sourceData, config.mapping);
+        const result = applyMapping(sourceData, config.mapping, config.filter);
         res.json({ success: true, data: result });
     } catch (error) {
         res.status(500).json({ success: false, error: error.message });
     }
 });
 
-const PORT = process.env.PORT || 3001; // Changed to port 3001
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
 });
